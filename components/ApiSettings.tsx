@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AIModel, AISettings } from '@/types';
 
 interface Props {
@@ -13,33 +13,52 @@ export default function ApiSettings({ settings, onSave }: Props) {
   const [openaiKey, setOpenaiKey] = useState(settings.openaiKey);
   const [geminiKey, setGeminiKey] = useState(settings.geminiKey);
   const [saved, setSaved] = useState(false);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // localStorage에서 불러온 값이 반영되도록 동기화
+  useEffect(() => {
+    setModel(settings.model);
+    setOpenaiKey(settings.openaiKey);
+    setGeminiKey(settings.geminiKey);
+  }, [settings.model, settings.openaiKey, settings.geminiKey]);
+
+  const showSaved = () => {
+    setSaved(true);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => setSaved(false), 1500);
+  };
 
   const handleModelChange = (newModel: AIModel) => {
     setModel(newModel);
-    onSave({
-      model: newModel,
-      openaiKey,
-      geminiKey,
-    });
+    onSave({ model: newModel, openaiKey, geminiKey });
+    showSaved();
   };
 
-  const handleSave = () => {
-    onSave({ model, openaiKey, geminiKey });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleKeyChange = (value: string) => {
+    if (model === 'chatgpt') {
+      setOpenaiKey(value);
+      onSave({ model, openaiKey: value, geminiKey });
+    } else {
+      setGeminiKey(value);
+      onSave({ model, openaiKey, geminiKey: value });
+    }
+    if (value.trim()) showSaved();
   };
 
   const currentKey = model === 'chatgpt' ? openaiKey : geminiKey;
-  const setCurrentKey = model === 'chatgpt' ? setOpenaiKey : setGeminiKey;
-  const hasKey = currentKey.trim().length > 0;
 
   return (
     <div className="card">
-      <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
-        AI 설정
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)]">
+          AI 설정
+        </h3>
+        {saved && (
+          <span className="text-xs text-[var(--accent)]">자동 저장됨</span>
+        )}
+      </div>
 
-      <div className="flex gap-4 mb-4">
+      <div className="flex gap-4 mb-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="radio"
@@ -62,23 +81,18 @@ export default function ApiSettings({ settings, onSave }: Props) {
         </label>
       </div>
 
-      <div className="flex gap-2">
-        <input
-          type="password"
-          value={currentKey}
-          onChange={(e) => setCurrentKey(e.target.value)}
-          placeholder={`${model === 'chatgpt' ? 'OpenAI' : 'Gemini'} API Key 입력`}
-        />
-        <button className="btn-primary whitespace-nowrap" onClick={handleSave}>
-          {saved ? '저장됨' : '저장'}
-        </button>
-      </div>
+      <input
+        type="password"
+        value={currentKey}
+        onChange={(e) => handleKeyChange(e.target.value)}
+        placeholder={`${model === 'chatgpt' ? 'OpenAI' : 'Gemini'} API Key 입력`}
+      />
 
-      {!hasKey && (
+      {!currentKey.trim() && (
         <p className="text-xs text-red-400 mt-2">
           {model === 'chatgpt'
-            ? 'OpenAI API 키를 입력하고 저장해주세요.'
-            : 'Gemini API 키를 입력하고 저장해주세요. (aistudio.google.com 에서 무료 발급)'}
+            ? 'OpenAI API 키를 입력해주세요.'
+            : 'Gemini API 키를 입력해주세요. (aistudio.google.com 에서 무료 발급)'}
         </p>
       )}
     </div>

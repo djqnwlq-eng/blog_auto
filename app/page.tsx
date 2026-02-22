@@ -76,7 +76,10 @@ export default function Home() {
   };
 
   const getApiKey = () => {
-    return aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+    const key = aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+    if (key) return key;
+    const stored = getAISettings();
+    return stored.model === 'chatgpt' ? stored.openaiKey : stored.geminiKey;
   };
 
   const getSelectedSubs = () =>
@@ -185,6 +188,8 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
+          <ApiSettings settings={aiSettings} onSave={handleSaveAISettings} />
+
           <ProductList
             products={products}
             selectedId={selectedProductId}
@@ -230,8 +235,6 @@ export default function Home() {
           )}
 
           {threadContent && <ThreadConverter thread={threadContent} />}
-
-          <ApiSettings settings={aiSettings} onSave={handleSaveAISettings} />
         </div>
       </div>
     </main>

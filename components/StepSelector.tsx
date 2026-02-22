@@ -6,6 +6,7 @@ import {
   ProductConnection,
   StepSelections,
 } from '@/types';
+import { getAISettings } from '@/lib/storage';
 
 interface Props {
   onComplete: (selections: StepSelections) => void;
@@ -80,8 +81,12 @@ export default function StepSelector({
   const [subtitles, setSubtitles] = useState<string[]>([]);
   const [loadingSubtitles, setLoadingSubtitles] = useState(false);
 
-  const getApiKey = () =>
-    aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+  const getApiKey = () => {
+    const key = aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+    if (key) return key;
+    const stored = getAISettings();
+    return stored.model === 'chatgpt' ? stored.openaiKey : stored.geminiKey;
+  };
 
   const callApi = async (action: string, extra: Record<string, unknown>) => {
     const res = await fetch('/api/generate', {

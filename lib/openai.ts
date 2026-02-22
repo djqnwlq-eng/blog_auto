@@ -6,7 +6,7 @@ export async function callOpenAI(apiKey: string, prompt: string): Promise<string
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.8,
-    max_tokens: 4000,
+    max_tokens: 8192,
   });
   return response.choices[0]?.message?.content || '';
 }

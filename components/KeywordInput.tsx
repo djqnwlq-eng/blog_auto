@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SubKeyword } from '@/types';
+import { getAISettings } from '@/lib/storage';
 
 interface Props {
   keyword: string;
@@ -20,16 +21,29 @@ export default function KeywordInput({
 }: Props) {
   const [loading, setLoading] = useState(false);
 
+  const getApiKey = () => {
+    // props에서 먼저 확인
+    const key = aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+    if (key) return key;
+    // props가 아직 동기화되지 않았을 수 있으므로 localStorage에서 직접 읽기
+    const stored = getAISettings();
+    return stored.model === 'chatgpt' ? stored.openaiKey : stored.geminiKey;
+  };
+
   const suggestKeywords = async () => {
     if (!keyword.trim()) return;
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      alert('API 키를 먼저 설정해주세요.');
+      return;
+    }
     setLoading(true);
     try {
-      const apiKey =
-        aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+      const currentModel = aiSettings.model || getAISettings().model;
       const res = await fetch('/api/suggest-keywords', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, model: aiSettings.model, apiKey }),
+        body: JSON.stringify({ keyword, model: currentModel, apiKey }),
       });
       const data = await res.json();
       if (data.keywords) {
