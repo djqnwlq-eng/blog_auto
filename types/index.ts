@@ -19,29 +19,27 @@ export interface AISettings {
   geminiKey: string;
 }
 
-export type Persona =
-  | '아이 키우는 엄마'
-  | '자기관리에 철저한 직장인'
-  | '피부 고민이 많은 예민러'
-  | '뷰티에 관심 많은 20대'
-  | string;
+export type Persona = string;
 
 export type ContentRatio =
-  | 'experience' // 경험 중심 70/30
-  | 'balanced'   // 균형형 50/50
-  | 'info'       // 정보 중심 30/70
-  | 'pure-info'; // 순수 정보글 100
+  | 'experience'      // 경험 중심 70/30
+  | 'experience-rec'  // 경험 + 추천 60/40
+  | 'balanced'        // 균형형 50/50
+  | 'info'            // 정보 중심 30/70
+  | 'pure-info';      // 순수 정보글 100
 
 export type ProductConnection =
-  | 'natural'    // 본문 중간에 자연스럽게
-  | 'end'        // 글 끝에 추천
-  | 'none';      // 제품 언급 없음
+  | 'ingredient'  // 주요성분 논리적 설명
+  | 'diary'       // 일자별 사용후기
+  | 'mixed'       // 성분 + 후기 믹싱
+  | 'none';       // 제품 언급 없음
 
 export interface StepSelections {
-  title: string;
   persona: Persona;
   contentRatio: ContentRatio;
   productConnection: ProductConnection;
+  title: string;
+  subtitles: string[];
 }
 
 export interface GeneratedContent {

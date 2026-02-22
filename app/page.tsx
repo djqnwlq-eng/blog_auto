@@ -27,8 +27,6 @@ export default function Home() {
   });
   const [keyword, setKeyword] = useState('');
   const [subKeywords, setSubKeywords] = useState<SubKeyword[]>([]);
-  const [titles, setTitles] = useState<string[]>([]);
-  const [loadingTitles, setLoadingTitles] = useState(false);
   const [stepStarted, setStepStarted] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<ContentType | null>(null);
   const [generatingContent, setGeneratingContent] = useState(false);
@@ -81,7 +79,10 @@ export default function Home() {
     return aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
   };
 
-  const generateTitles = async () => {
+  const getSelectedSubs = () =>
+    subKeywords.filter((s) => s.selected).map((s) => s.keyword);
+
+  const handleStart = () => {
     const apiKey = getApiKey();
     if (!apiKey) {
       alert('API 키를 먼저 설정해주세요.');
@@ -91,44 +92,9 @@ export default function Home() {
       alert('키워드를 입력해주세요.');
       return;
     }
-
     setStepStarted(true);
-    setLoadingTitles(true);
-    setTitles([]);
     setGeneratedContent(null);
     setThreadContent(null);
-
-    try {
-      const selectedSubs = subKeywords
-        .filter((s) => s.selected)
-        .map((s) => s.keyword);
-
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'titles',
-          model: aiSettings.model,
-          apiKey,
-          keyword,
-          subKeywords: selectedSubs,
-          productInfo: getProductInfoString(),
-        }),
-      });
-
-      const data = await res.json();
-      if (data.titles && data.titles.length > 0) {
-        setTitles(data.titles);
-      } else {
-        alert(data.error || '제목 생성에 실패했습니다.');
-        setStepStarted(false);
-      }
-    } catch (err) {
-      alert('제목 생성에 실패했습니다: ' + (err instanceof Error ? err.message : String(err)));
-      setStepStarted(false);
-    } finally {
-      setLoadingTitles(false);
-    }
   };
 
   const handleStepComplete = async (selections: StepSelections) => {
@@ -140,9 +106,6 @@ export default function Home() {
     setThreadContent(null);
 
     try {
-      const selectedSubs = subKeywords
-        .filter((s) => s.selected)
-        .map((s) => s.keyword);
       const product = getSelectedProduct();
 
       const res = await fetch('/api/generate', {
@@ -154,12 +117,13 @@ export default function Home() {
           apiKey,
           title: selections.title,
           keyword,
-          subKeywords: selectedSubs,
+          subKeywords: getSelectedSubs(),
           persona: selections.persona,
           contentRatio: selections.contentRatio,
           productConnection: selections.productConnection,
           productInfo: getProductInfoString(),
           sellingPoints: product?.sellingPoints || [],
+          subtitles: selections.subtitles,
         }),
       });
 
@@ -239,12 +203,13 @@ export default function Home() {
           />
 
           <StepSelector
-            titles={titles}
-            onTitlesRequest={generateTitles}
-            onRegenerateTitles={generateTitles}
-            loadingTitles={loadingTitles}
             onComplete={handleStepComplete}
             started={stepStarted}
+            onStart={handleStart}
+            keyword={keyword}
+            subKeywords={getSelectedSubs()}
+            productInfo={getProductInfoString()}
+            aiSettings={aiSettings}
           />
 
           {generatingContent && (

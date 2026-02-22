@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callOpenAI } from '@/lib/openai';
 import { callGemini } from '@/lib/gemini';
-import { buildTitlePrompt, buildContentPrompt, buildThreadPrompt } from '@/lib/prompts';
+import {
+  buildTitlePrompt,
+  buildSubtitlePrompt,
+  buildPersonaPrompt,
+  buildContentPrompt,
+  buildThreadPrompt,
+} from '@/lib/prompts';
 import { ContentRatio, ProductConnection } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -20,9 +26,29 @@ export async function POST(req: NextRequest) {
       ? (prompt: string) => callGemini(apiKey, prompt)
       : (prompt: string) => callOpenAI(apiKey, prompt);
 
+    if (action === 'personas') {
+      const { keyword } = body;
+      const prompt = buildPersonaPrompt(keyword);
+      const result = await callAI(prompt);
+
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return NextResponse.json({ error: '페르소나 생성 실패' }, { status: 500 });
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      return NextResponse.json({ personas: parsed.personas });
+    }
+
     if (action === 'titles') {
-      const { keyword, subKeywords, productInfo } = body;
-      const prompt = buildTitlePrompt(keyword, subKeywords || [], productInfo || '');
+      const { keyword, subKeywords, productInfo, persona, contentRatio, productConnection } = body;
+      const prompt = buildTitlePrompt({
+        keyword,
+        subKeywords: subKeywords || [],
+        productInfo: productInfo || '',
+        persona: persona || '',
+        contentRatio: contentRatio as ContentRatio,
+        productConnection: productConnection as ProductConnection,
+      });
       const result = await callAI(prompt);
 
       const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -31,6 +57,26 @@ export async function POST(req: NextRequest) {
       }
       const parsed = JSON.parse(jsonMatch[0]);
       return NextResponse.json({ titles: parsed.titles });
+    }
+
+    if (action === 'subtitles') {
+      const { keyword, subKeywords, persona, contentRatio, productConnection, title } = body;
+      const prompt = buildSubtitlePrompt({
+        keyword,
+        subKeywords: subKeywords || [],
+        persona: persona || '',
+        contentRatio: contentRatio as ContentRatio,
+        productConnection: productConnection as ProductConnection,
+        title: title || '',
+      });
+      const result = await callAI(prompt);
+
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return NextResponse.json({ error: '소제목 생성 실패' }, { status: 500 });
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      return NextResponse.json({ subtitles: parsed.subtitles });
     }
 
     if (action === 'content') {
@@ -43,6 +89,7 @@ export async function POST(req: NextRequest) {
         productConnection,
         productInfo,
         sellingPoints,
+        subtitles,
       } = body;
 
       const prompt = buildContentPrompt({
@@ -54,6 +101,7 @@ export async function POST(req: NextRequest) {
         productConnection: productConnection as ProductConnection,
         productInfo: productInfo || '',
         sellingPoints: sellingPoints || [],
+        subtitles: subtitles || [],
       });
 
       const result = await callAI(prompt);
