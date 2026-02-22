@@ -1,101 +1,274 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from 'react';
+import {
+  Product,
+  AISettings,
+  SubKeyword,
+  StepSelections,
+  GeneratedContent as ContentType,
+  ThreadContent,
+} from '@/types';
+import { getProducts, saveProducts, getAISettings, saveAISettings } from '@/lib/storage';
+import ProductList from '@/components/ProductList';
+import ApiSettings from '@/components/ApiSettings';
+import KeywordInput from '@/components/KeywordInput';
+import StepSelector from '@/components/StepSelector';
+import GeneratedContent from '@/components/GeneratedContent';
+import ThreadConverter from '@/components/ThreadConverter';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<AISettings>({
+    model: 'chatgpt',
+    openaiKey: '',
+    geminiKey: '',
+  });
+  const [keyword, setKeyword] = useState('');
+  const [subKeywords, setSubKeywords] = useState<SubKeyword[]>([]);
+  const [titles, setTitles] = useState<string[]>([]);
+  const [loadingTitles, setLoadingTitles] = useState(false);
+  const [stepStarted, setStepStarted] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<ContentType | null>(null);
+  const [generatingContent, setGeneratingContent] = useState(false);
+  const [threadContent, setThreadContent] = useState<ThreadContent | null>(null);
+  const [loadingThread, setLoadingThread] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    setProducts(getProducts());
+    setAiSettings(getAISettings());
+  }, []);
+
+  const handleAddProduct = (product: Product) => {
+    const updated = [...products, product];
+    setProducts(updated);
+    saveProducts(updated);
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    const updated = products.filter((p) => p.id !== id);
+    setProducts(updated);
+    saveProducts(updated);
+    if (selectedProductId === id) setSelectedProductId(null);
+  };
+
+  const handleSelectProduct = (id: string) => {
+    setSelectedProductId(selectedProductId === id ? null : id);
+  };
+
+  const handleSaveAISettings = (settings: AISettings) => {
+    setAiSettings(settings);
+    saveAISettings(settings);
+  };
+
+  const getSelectedProduct = () => {
+    return products.find((p) => p.id === selectedProductId) || null;
+  };
+
+  const getProductInfoString = () => {
+    const product = getSelectedProduct();
+    if (!product) return '';
+    let info = `상품명: ${product.name}`;
+    if (product.description) info += `\n설명: ${product.description}`;
+    if (product.sellingPoints.length > 0) {
+      info += `\n셀링포인트: ${product.sellingPoints.join(', ')}`;
+    }
+    return info;
+  };
+
+  const getApiKey = () => {
+    return aiSettings.model === 'chatgpt' ? aiSettings.openaiKey : aiSettings.geminiKey;
+  };
+
+  const generateTitles = async () => {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      alert('API 키를 먼저 설정해주세요.');
+      return;
+    }
+    if (!keyword.trim()) {
+      alert('키워드를 입력해주세요.');
+      return;
+    }
+
+    setStepStarted(true);
+    setLoadingTitles(true);
+    setTitles([]);
+    setGeneratedContent(null);
+    setThreadContent(null);
+
+    try {
+      const selectedSubs = subKeywords
+        .filter((s) => s.selected)
+        .map((s) => s.keyword);
+
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'titles',
+          model: aiSettings.model,
+          apiKey,
+          keyword,
+          subKeywords: selectedSubs,
+          productInfo: getProductInfoString(),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.titles && data.titles.length > 0) {
+        setTitles(data.titles);
+      } else {
+        alert(data.error || '제목 생성에 실패했습니다.');
+        setStepStarted(false);
+      }
+    } catch (err) {
+      alert('제목 생성에 실패했습니다: ' + (err instanceof Error ? err.message : String(err)));
+      setStepStarted(false);
+    } finally {
+      setLoadingTitles(false);
+    }
+  };
+
+  const handleStepComplete = async (selections: StepSelections) => {
+    const apiKey = getApiKey();
+    if (!apiKey) return;
+
+    setGeneratingContent(true);
+    setGeneratedContent(null);
+    setThreadContent(null);
+
+    try {
+      const selectedSubs = subKeywords
+        .filter((s) => s.selected)
+        .map((s) => s.keyword);
+      const product = getSelectedProduct();
+
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'content',
+          model: aiSettings.model,
+          apiKey,
+          title: selections.title,
+          keyword,
+          subKeywords: selectedSubs,
+          persona: selections.persona,
+          contentRatio: selections.contentRatio,
+          productConnection: selections.productConnection,
+          productInfo: getProductInfoString(),
+          sellingPoints: product?.sellingPoints || [],
+        }),
+      });
+
+      const data = await res.json();
+      if (data.content) {
+        setGeneratedContent({
+          title: selections.title,
+          body: data.content,
+        });
+      } else {
+        alert(data.error || '글 생성에 실패했습니다.');
+      }
+    } catch {
+      alert('글 생성에 실패했습니다.');
+    } finally {
+      setGeneratingContent(false);
+    }
+  };
+
+  const convertToThread = async () => {
+    if (!generatedContent) return;
+    const apiKey = getApiKey();
+    if (!apiKey) return;
+
+    setLoadingThread(true);
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'thread',
+          model: aiSettings.model,
+          apiKey,
+          blogContent: `${generatedContent.title}\n\n${generatedContent.body}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.main && data.comments) {
+        setThreadContent(data);
+      } else {
+        alert(data.error || '스레드 변환에 실패했습니다.');
+      }
+    } catch {
+      alert('스레드 변환에 실패했습니다.');
+    } finally {
+      setLoadingThread(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-1">블로그 글쓰기</h1>
+          <p className="text-sm text-[var(--text-muted)]">
+            효율적인 블로그 포스팅을 위한 AI 글쓰기 도구
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+
+        <div className="space-y-4">
+          <ProductList
+            products={products}
+            selectedId={selectedProductId}
+            onSelect={handleSelectProduct}
+            onAdd={handleAddProduct}
+            onDelete={handleDeleteProduct}
+            aiSettings={aiSettings}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+
+          <KeywordInput
+            keyword={keyword}
+            onKeywordChange={setKeyword}
+            subKeywords={subKeywords}
+            onSubKeywordsChange={setSubKeywords}
+            aiSettings={aiSettings}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+
+          <StepSelector
+            titles={titles}
+            onTitlesRequest={generateTitles}
+            onRegenerateTitles={generateTitles}
+            loadingTitles={loadingTitles}
+            onComplete={handleStepComplete}
+            started={stepStarted}
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+
+          {generatingContent && (
+            <div className="card flex items-center justify-center gap-3 py-12">
+              <div className="spinner" />
+              <span className="text-sm text-[var(--text-muted)]">
+                글을 작성하고 있습니다...
+              </span>
+            </div>
+          )}
+
+          {generatedContent && !generatingContent && (
+            <GeneratedContent
+              content={generatedContent}
+              onConvertThread={convertToThread}
+              loadingThread={loadingThread}
+            />
+          )}
+
+          {threadContent && <ThreadConverter thread={threadContent} />}
+
+          <ApiSettings settings={aiSettings} onSave={handleSaveAISettings} />
+        </div>
+      </div>
+    </main>
   );
 }
