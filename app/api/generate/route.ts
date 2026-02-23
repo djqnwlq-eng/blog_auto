@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '페르소나 생성 실패' }, { status: 500 });
       }
       const parsed = JSON.parse(jsonMatch[0]);
-      return NextResponse.json({ personas: parsed.personas });
+      const personas = (parsed.personas || []).map((p: unknown) =>
+        typeof p === 'string' ? p : `${(p as Record<string, string>).name} - ${(p as Record<string, string>).situation || ''} (${(p as Record<string, string>).emotion || ''})`
+      );
+      return NextResponse.json({ personas });
     }
 
     if (action === 'titles') {

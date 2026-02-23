@@ -49,7 +49,7 @@ export default function GeneratedContent({
           onClick={onConvertThread}
           disabled={loadingThread}
         >
-          {loadingThread ? '변환 중...' : '스레드용으로 변환'}
+          {loadingThread ? '변환 중...' : '공식 계정용 스레드 게시물로 변환'}
         </button>
       </div>
     </div>
